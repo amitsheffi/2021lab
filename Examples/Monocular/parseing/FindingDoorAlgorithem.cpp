@@ -6,14 +6,20 @@
 #include <vector>
 #include <string>
 #include "point.h"
+#include <algorithm>
 
 using namespace std;
 vector<Point> parsePoints(string filePath);
+vector<Point> getDoorPoint(vector<Point>& points, Point targetP);
+Point cleanPoints(vector<Point>& maxPoints);
 
 int main()
 {
+    Point p(0, 0, 0);
     vector<Point> points = parsePoints("data\\PointData.csv");
-
+    vector<Point> maxPoints = getDoorPoint(points, p);
+    Point door = cleanPoints(maxPoints);
+    cout << door << endl;
 }
 
 vector<Point> parsePoints(string filePath)
@@ -25,18 +31,16 @@ vector<Point> parsePoints(string filePath)
     // Open an existing file
     fin.open(filePath, ios::in);
 
-    // Read the Data from the file
-    // as String Vector
     vector<Point> points;
     string line, token;
     string delimiter = ",";
     size_t pos;
-    int counter, n;
+    int counter;
     double value;
 
     points.clear();
 
-    while (getline(fin, line))
+    while (getline(fin, line)) // main loop
     {
         pos = 0;
         counter = 0;
@@ -62,13 +66,32 @@ vector<Point> parsePoints(string filePath)
     return points;
 }
 
-// Run program: Ctrl + F5 or Debug > Start Without Debugging menu
-// Debug program: F5 or Debug > Start Debugging menu
+vector<Point> getDoorPoint(vector<Point>& points, Point targetP)
+{
+    vector<Point> maxPoints(50);
+    for (int i = 0; i < points.size(); i++)
+    {
+        for (int j = 0; j < 50; j++)
+        {
+            if (points[i].getDistanceFrom(targetP) > maxPoints[j].getDistanceFrom(targetP))
+            {
+                maxPoints[j] = points[i];
+                break;
+            }
+        }
+    }
+    return maxPoints;
+}
 
-// Tips for Getting Started: 
-//   1. Use the Solution Explorer window to add/manage files
-//   2. Use the Team Explorer window to connect to source control
-//   3. Use the Output window to see build output and other messages
-//   4. Use the Error List window to view errors
-//   5. Go to Project > Add New Item to create new code files, or Project > Add Existing Item to add existing code files to the project
-//   6. In the future, to open this project again, go to File > Open > Project and select the .sln file
+Point cleanPoints(vector<Point>& maxPoints)
+{
+    double x = 0, z = 0;
+    for (int i = 0; i < maxPoints.size(); i++)
+    {
+        x += maxPoints[i].getX();
+        z += maxPoints[i].getZ();
+    }
+    return Point(x/50, 0, z/50);
+}
+
+

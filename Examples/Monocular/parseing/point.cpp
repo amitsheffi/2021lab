@@ -1,5 +1,11 @@
 #include "point.h"
 // Point constructor
+Point::Point()
+{
+    this->x = 0;
+    this->y = 0;
+    this->z = 0;
+}
 Point::Point(double x, double y, double z)
 {
     this->x = x;
@@ -65,5 +71,5 @@ Point& Point::setPoint(double x, double y, double z)
 // implement distance function
 double Point::getDistanceFrom(const Point& p1)
 {
-    return ((p1.x - this->x) * (p1.x - this->x) + (p1.y - this->y) * (p1.y - this->y));
+    return ((p1.x - this->x) * (p1.x - this->x) + (p1.z - this->z) * (p1.z- this->z));
 }

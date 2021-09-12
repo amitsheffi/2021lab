@@ -11,6 +11,7 @@ private:
     double z;
 
 public:
+    Point();
     Point(double x, double y, double z);
     Point(const Point& other);
     ~Point() {};
