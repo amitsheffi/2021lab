@@ -25,103 +25,104 @@
 #include<chrono>
 #include <unistd.h>	
 #include<opencv2/core/core.hpp>
-
+#include <thread>
 #include<System.h>
 #include <Converter.h>	
+#include "ctello.h"
+#include "opencv2/core.hpp"
+#include "opencv2/highgui.hpp"
+#include "opencv2/imgcodecs.hpp"
+#include "opencv2/imgproc.hpp"
+
 using namespace std;
+using ctello::Tello;
+using cv::CAP_FFMPEG;
+using cv::imshow;
+using cv::line;
+using cv::Mat;
+using cv::Point2i;
+using cv::resize;
+using cv::Size;
+using cv::Vec3b;
+using cv::VideoCapture;
+using cv::waitKey;
+
+const char* const TELLO_STREAM_URL{"udp://0.0.0.0:11111"};
+bool inThread1, inThread2;
+bool video;
+Tello tello{};
+Mat im;
 
 void LoadImages(const string &strFile, vector<string> &vstrImageFilenames,
                 vector<double> &vTimestamps);
+// a thread that controls the Drone movement
+void MoveDrone()
+{
+	while(!video) // wait for the capture before you take off
+		sleep(0.01);
+	tello.SendCommand("takeoff");
+	while(!(tello.ReceiveResponse()));
+	sleep(5); // it takes a while before a picture is shown so wait 5 sec
+	// main loop, make the drone turn 30 degrees clockwise
+	while(inThread1)
+	{
+		tello.SendCommand("cw 30");
+		while(!(tello.ReceiveResponse()));
+		sleep(0.5);
+	}
+	tello.SendCommand("land"); 
+	while(!(tello.ReceiveResponse()));
+	inThread2 = false;
+}
+// a thread that get the frames from the drone
+void GetFrame()
+{
+	tello.SendCommand("streamon"); 
+	while (!(tello.ReceiveResponse()));
+	VideoCapture capture{TELLO_STREAM_URL, CAP_FFMPEG};
+	video = true;
+	// main loop, get the frames from capture and put it in our global matrics
+	for(int n = 0; n < 50000; n++) 
+	{
+		capture >> im;
+		sleep(0.02);
+	}
+	inThread1 = false;
+}
+
 
 int main(int argc, char **argv)
 {
-    if(argc != 4)
+    if(argc != 3)
     {
         cerr << endl << "Usage: ./mono_tum path_to_vocabulary path_to_settings path_to_sequence" << endl;
         return 1;
     }
-
-    // Retrieve paths to images
-    vector<string> vstrImageFilenames;
-    vector<double> vTimestamps;
-    string strFile = string(argv[3])+"/rgb.txt";
-    LoadImages(strFile, vstrImageFilenames, vTimestamps);
-
-    int nImages = vstrImageFilenames.size();
-
-    // Create SLAM system. It initializes all system threads and gets ready to process frames.
-    ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);
-
-    // Vector for tracking time statistics
-    vector<float> vTimesTrack;
-    vTimesTrack.resize(nImages);
-
-    cout << endl << "-------" << endl;
-    cout << "Start processing sequence ..." << endl;
-    cout << "Images in the sequence: " << nImages << endl << endl;
-
-    // Main loop
-    cv::Mat im;
-    for(int ni=0; ni<nImages; ni++)
-    {
-        // Read image from file
-        im = cv::imread(string(argv[3])+"/"+vstrImageFilenames[ni],CV_LOAD_IMAGE_UNCHANGED);
-        double tframe = vTimestamps[ni];
-
-        if(im.empty())
+	if(!tello.Bind()) // check if tello is alive
+	{
+		return 0;
+	}
+	video = false;
+	inThread1 = true;
+	inThread2 = true;
+	thread th1(GetFrame); // call thread 1
+	thread th2(MoveDrone); // call thread 2
+	// Create SLAM system. It initializes all system threads and gets ready to process frames.
+	ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);
+	while(!video)
+	{
+		sleep(0.01); // we need to wait until the video is online before we try to display images
+	}
+	while(inThread1)
+	{
+        if(!im.empty())
         {
-            cerr << endl << "Failed to load image at: "
-                 << string(argv[3]) << "/" << vstrImageFilenames[ni] << endl;
-            return 1;
+			SLAM.TrackMonocular(im,0.02); // if the image is not empty pass the images to SLAM
         }
-
-#ifdef COMPILEDWITHC11
-        std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
-#else
-        std::chrono::monotonic_clock::time_point t1 = std::chrono::monotonic_clock::now();
-#endif
-
-        // Pass the image to the SLAM system
-        SLAM.TrackMonocular(im,tframe);
-
-#ifdef COMPILEDWITHC11
-        std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
-#else
-        std::chrono::monotonic_clock::time_point t2 = std::chrono::monotonic_clock::now();
-#endif
-
-        double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
-
-        vTimesTrack[ni]=ttrack;
-
-        // Wait to load the next frame
-        double T=0;
-        if(ni<nImages-1)
-            T = vTimestamps[ni+1]-tframe;
-        else if(ni>0)
-            T = tframe-vTimestamps[ni-1];
-
-        if(ttrack<T)
-            usleep((T-ttrack)*1e6);
     }
 
     // Stop all threads
     SLAM.Shutdown();
-
-    // Tracking time statistics
-    sort(vTimesTrack.begin(),vTimesTrack.end());
-    float totaltime = 0;
-    for(int ni=0; ni<nImages; ni++)
-    {
-        totaltime+=vTimesTrack[ni];
-    }
-    cout << "-------" << endl << endl;
-    cout << "median tracking time: " << vTimesTrack[nImages/2] << endl;
-    cout << "mean tracking time: " << totaltime/nImages << endl;
-
-    // Save camera trajectory
-    SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
-
     return 0;
 }
 
