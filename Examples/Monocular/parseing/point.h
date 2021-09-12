@@ -6,29 +6,29 @@
 class Point
 {
 private:
-    double x;
-    double y;
-    double z;
+	double x;
+	double y;
+	double z;
 
 public:
-    Point();
-    Point(double x, double y, double z);
-    Point(const Point& other);
-    ~Point() {};
-    
-    Point& operator= (const Point& other);
-    friend std::ostream& operator<<(std::ostream& os, const Point& p);
+	Point();
+	Point(double x, double y, double z);
+	Point(const Point& other);
+	~Point() {};
 
-    double getX();
-    double getY();
-    double getZ();
+	Point& operator= (const Point& other);
+	friend std::ostream& operator<<(std::ostream& os, const Point& p);
 
-    Point& setX(double x);
-    Point& setY(double y);
-    Point& setZ(double z);
-    Point& setPoint(double x, double y, double z);
+	double getX();
+	double getY();
+	double getZ();
 
-    double getDistanceFrom(const Point& p1);
+	Point& setX(double x);
+	Point& setY(double y);
+	Point& setZ(double z);
+	Point& setPoint(double x, double y, double z);
+
+	double getDistanceFrom(const Point& p1);
 };
 
 #endif
