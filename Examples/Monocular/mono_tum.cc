@@ -33,6 +33,7 @@
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgcodecs.hpp"
 #include "opencv2/imgproc.hpp"
+#include <point.h>
 
 using namespace std;
 using ctello::Tello;
@@ -48,13 +49,17 @@ using cv::VideoCapture;
 using cv::waitKey;
 
 const char* const TELLO_STREAM_URL{"udp://0.0.0.0:11111"};
-bool inThread1, inThread2;
+bool inThreadMove, inThreadFrame;
 bool video;
 Tello tello{};
 Mat im;
+bool localized = false;
 
 void LoadImages(const string &strFile, vector<string> &vstrImageFilenames,
                 vector<double> &vTimestamps);
+
+void saveMap(ORB_SLAM2::System& SLAM);
+
 // a thread that controls the Drone movement
 void MoveDrone()
 {
@@ -62,17 +67,34 @@ void MoveDrone()
 		sleep(0.01);
 	tello.SendCommand("takeoff");
 	while(!(tello.ReceiveResponse()));
+	sleep(0.1);
+	tello.SendCommand("down 10");
+	while(!(tello.ReceiveResponse()));
+	sleep(0.1);
 	sleep(5); // it takes a while before a picture is shown so wait 5 sec
 	// main loop, make the drone turn 30 degrees clockwise
-	while(inThread1)
+	while(!localized)
 	{
-		tello.SendCommand("cw 30");
+		tello.SendCommand("up 20");
 		while(!(tello.ReceiveResponse()));
-		sleep(0.5);
+		sleep(0.1);
+		tello.SendCommand("down 20");
+		while(!(tello.ReceiveResponse()));
+		sleep(0.1);
 	}
-	tello.SendCommand("land"); 
-	while(!(tello.ReceiveResponse()));
-	inThread2 = false;
+	for(int i = 0; i < 360; i = i + 20)
+	{
+		tello.SendCommand("cw 20");
+		while(!(tello.ReceiveResponse()));
+		sleep(0.1);
+		tello.SendCommand("up 20");
+		while(!(tello.ReceiveResponse()));
+		sleep(0.1);
+		tello.SendCommand("down 20");
+		while(!(tello.ReceiveResponse()));
+		sleep(0.1);
+	}
+	inThreadMove = false;
 }
 // a thread that get the frames from the drone
 void GetFrame()
@@ -82,12 +104,12 @@ void GetFrame()
 	VideoCapture capture{TELLO_STREAM_URL, CAP_FFMPEG};
 	video = true;
 	// main loop, get the frames from capture and put it in our global matrics
-	for(int n = 0; n < 50000; n++) 
+	while(inThreadMove)
 	{
 		capture >> im;
 		sleep(0.02);
 	}
-	inThread1 = false;
+	inThreadFrame = false;
 }
 
 
@@ -98,30 +120,36 @@ int main(int argc, char **argv)
         cerr << endl << "Usage: ./mono_tum path_to_vocabulary path_to_settings path_to_sequence" << endl;
         return 1;
     }
+    
 	if(!tello.Bind()) // check if tello is alive
 	{
 		return 0;
 	}
 	video = false;
-	inThread1 = true;
-	inThread2 = true;
-	thread th1(GetFrame); // call thread 1
-	thread th2(MoveDrone); // call thread 2
+	inThreadFrame = true;
+	inThreadMove = true;
+	thread th1(GetFrame); // call thread GetFrame
+	thread th2(MoveDrone); // call thread MoveDrone
 	// Create SLAM system. It initializes all system threads and gets ready to process frames.
 	ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);
 	while(!video)
 	{
 		sleep(0.01); // we need to wait until the video is online before we try to display images
 	}
-	while(inThread1)
+	while(inThreadFrame)
 	{
         if(!im.empty())
         {
-			SLAM.TrackMonocular(im,0.02); // if the image is not empty pass the images to SLAM
+			Mat pose = SLAM.TrackMonocular(im,0.02); // if the image is not empty pass the images to SLAM
+        	localized = !pose.empty();
         }
     }
-
+    cout << "ended getting frames" << endl;
     // Stop all threads
+	saveMap(SLAM);
+	tello.SendCommand("land");
+	while(!(tello.ReceiveResponse()));
+	sleep(0.1);
     SLAM.Shutdown();
     return 0;
 }
@@ -154,3 +182,19 @@ void LoadImages(const string &strFile, vector<string> &vstrImageFilenames, vecto
         }
     }
 }
+
+void saveMap(ORB_SLAM2::System& SLAM){
+    std::vector<ORB_SLAM2::MapPoint*> mapPoints = SLAM.GetMap()->GetAllMapPoints();
+    std::ofstream pointData;
+    pointData.open("/tmp/pointData.csv");
+    for(auto p : mapPoints) {
+        if (p != NULL)
+        {
+            auto point = p->GetWorldPos();
+            Eigen::Matrix<double, 3, 1> v = ORB_SLAM2::Converter::toVector3d(point);
+            pointData << v.x() << "," << v.y() << "," << v.z()<<  std::endl;
+        }
+    }
+    pointData.close();
+}
+

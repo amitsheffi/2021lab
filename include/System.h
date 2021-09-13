@@ -101,14 +101,6 @@ public:
     // This function must be called before saving the trajectory.
     void Shutdown();
 
-	// Save / Load the current map for Mono Execution
-	void SaveMap(const string &filename);
-	void LoadMap(const string &filename);
-
-	// Get map with tracked frames and points.
-	// Call first Shutdown()
-	//Map *GetMap();
-
     // Save camera trajectory in the TUM RGB-D dataset format.
     // Call first Shutdown()
     // See format details at: http://vision.in.tum.de/data/datasets/rgbd-dataset
