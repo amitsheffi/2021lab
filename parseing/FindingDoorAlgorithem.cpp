@@ -18,18 +18,17 @@ int getNeighbors(vector<Point>& points, Point& p);
 Point findAvaregePoint(vector<Point>& points);
 vector<Point> getMaximumInterval(vector<Point>& points, Point targetP, int intervalSize);
 Point getDoorUsingSlices(vector<Point>& points, Point targetP, int degreeOfSlice);
-bool sortFunction(Point p1, Point p2);
+bool sortFunctionDistance(Point p1, Point p2);
+bool sortFunctionIndex(Point p1, Point p2);
 void sortOutOutliers(vector<Point>& points, Point targetP, int minNumberOfNeighbors, double neighborDistance);
 void savePointToCsv(vector<Point>& points);
 Point getMaxPoint(vector<Point>& points, Point& targetP);
 
 int main()
 {
-	Point p(0, 0, 0);
+	Point p(0, 0, 0, 0);
 	vector<Point> points = parsePoints("data\\pointDataVered.csv");
-	sortOutOutliers(points, p, 10, 0.1);
-	//vector<Point> interval = getMaximumInterval(points, p, 10);
-	//cout << getMaxPoint(points, p) << endl;
+	savePointToCsv(points);
 }
 
 Point getMaxPoint(vector<Point>& points, Point& targetP)
@@ -56,43 +55,45 @@ vector<Point> parsePoints(string filePath)
 	string line, token;
 	string delimiter = ",";
 	size_t pos;
-	int counter;
+	int counter, indexCounter = 0;
 	double value;
 
 	points.clear();
 
-while (getline(fin, line)) // main loop
-{
-	pos = 0;
-	counter = 0;
-	Point point(0, 0, 0);
-	while ((pos = line.find(delimiter)) != string::npos) {
-		token = line.substr(0, pos);
-		value = stod(token);
-		if (counter == 0)
-		{
-			point.setX(value);
+	while (getline(fin, line)) // main loop
+	{
+		pos = 0;
+		counter = 0;
+		Point point(0, 0, 0, 0);
+		while ((pos = line.find(delimiter)) != string::npos) {
+			token = line.substr(0, pos);
+			value = stod(token);
+			if (counter == 0)
+			{
+				point.setX(value);
+			}
+			else if (counter == 1)
+			{
+				point.setY(value);
+			}
+			line.erase(0, pos + delimiter.length());
+			counter++;
 		}
-		else if (counter == 1)
-		{
-			point.setY(value);
-		}
-		line.erase(0, pos + delimiter.length());
-		counter++;
+		value = stod(line);
+		point.setZ(value);
+		point.setIndex(indexCounter);
+		points.push_back(point);
+		indexCounter++;
 	}
-	value = stod(line);
-	point.setZ(value);
-	points.push_back(point);
-}
-return points;
+	return points;
 }
 
 void savePointToCsv(vector<Point>& points)
 {
 	ofstream file1, file2;
 	Point z(0, 0, 0);
-	file1.open("C:\\Users\\ori.sheffi\\Desktop\\2021Lab\\FindingDoorAlgorithem\\csvData\\fileAllPoints.csv");
-	file2.open("C:\\Users\\ori.sheffi\\Desktop\\2021Lab\\FindingDoorAlgorithem\\csvData\\fileNoOutliers.csv");
+	file1.open("E:\\university\\summer semester 2nd year\\LAB\\FindDoorAlgorithem\\csvData\\fileAllPoints.csv");
+	file2.open("E:\\university\\summer semester 2nd year\\LAB\\FindDoorAlgorithem\\csvData\\fileNoOutliers.csv");
 	for (Point& p : points)
 	{
 		file1 << p.getX() << ',' << p.getY() << ',' << p.getZ() << '\n';
@@ -177,7 +178,7 @@ vector<Point> getMaximumInterval(vector<Point>& points, Point targetP, int inter
 		tmpInterval = 0;
 		for (int j = i; (j - i) < intervalSize; j++)
 		{
-				tmpInterval += points[j].getDistanceFrom(targetP);
+			tmpInterval += points[j].getDistanceFrom(targetP);
 		}
 		if (tmpInterval > sumMaxInterval)
 		{
@@ -185,9 +186,9 @@ vector<Point> getMaximumInterval(vector<Point>& points, Point targetP, int inter
 			startingIntervalIndex = i;
 		}
 	}
-	for(int i = startingIntervalIndex; i - startingIntervalIndex < intervalSize; i++)
+	for (int i = startingIntervalIndex; i - startingIntervalIndex < intervalSize; i++)
 	{
-			interval.push_back(points[i]);
+		interval.push_back(points[i]);
 	}
 	return interval;
 }
@@ -230,9 +231,9 @@ void sortOutOutliers(vector<Point>& points, Point targetP, int minNumberOfNeighb
 {
 	int numOfNeighbors;
 	double currentDistance;
-	Point p(0, 0, 0);
+	Point p;
 	vector<Point> goodPoints;
-	sort(points.begin(), points.end(), sortFunction);
+	sort(points.begin(), points.end(), sortFunctionDistance);
 	for (int i = 0; i < points.size(); i++)
 	{
 		numOfNeighbors = 0;
@@ -251,23 +252,23 @@ void sortOutOutliers(vector<Point>& points, Point targetP, int minNumberOfNeighb
 			if (points[i].getDistanceFrom(points[j]) < neighborDistance)
 				numOfNeighbors++;
 		}
-		
+
 		if (numOfNeighbors >= minNumberOfNeighbors)
 			goodPoints.push_back(points[i]);
-		/*
-		if (numOfNeighbors < minNumberOfNeighbors)
-		{
-			points.erase(points.begin() + i);
-			i--;
-		}
-		*/
+		
 	}
+	sort(goodPoints.begin(), goodPoints.end(), sortFunctionIndex);
 	points = goodPoints;
 	//cout << goodPoints.size() << endl;
 }
 
-bool sortFunction(Point p1, Point p2)
+bool sortFunctionDistance(Point p1, Point p2)
 {
-	Point z(0, 0, 0);
+	Point z;
 	return (p1.getDistanceFrom(z) < p2.getDistanceFrom(z));
+}
+
+bool sortFunctionIndex(Point p1, Point p2)
+{
+	return p1.getIndex() < p2.getIndex();
 }
