@@ -1,5 +1,5 @@
 #include "point.h"
-// Point constructor
+// Point constructors
 Point::Point()
 {
 	this->x = 0;
@@ -88,7 +88,7 @@ Point& Point::setPoint(double x, double y, double z, int index)
 	this->index = index;
 	return *this;
 }
-// implement distance function
+// implement distance function, use only X and Z axes because we want the distance acording to the X,Z plane
 double Point::getDistanceFrom(const Point& p1)
 {
 	return ((p1.x - this->x) * (p1.x - this->x) + (p1.z - this->z) * (p1.z - this->z));
