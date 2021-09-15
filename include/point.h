@@ -9,10 +9,12 @@ private:
 	double x;
 	double y;
 	double z;
+	int index;
 
 public:
 	Point();
 	Point(double x, double y, double z);
+	Point(double x, double y, double z, int index);
 	Point(const Point& other);
 	~Point() {};
 
@@ -22,11 +24,13 @@ public:
 	double getX();
 	double getY();
 	double getZ();
+	int getIndex();
 
 	Point& setX(double x);
 	Point& setY(double y);
 	Point& setZ(double z);
-	Point& setPoint(double x, double y, double z);
+	Point& setIndex(int index);
+	Point& setPoint(double x, double y, double z, int index);
 
 	double getDistanceFrom(const Point& p1);
 };
