@@ -5,6 +5,7 @@ Point::Point()
 	this->x = 0;
 	this->y = 0;
 	this->z = 0;
+	this->index = 0;
 }
 Point::Point(double x, double y, double z)
 {
@@ -12,11 +13,19 @@ Point::Point(double x, double y, double z)
 	this->y = y;
 	this->z = z;
 }
+Point::Point(double x, double y, double z, int index)
+{
+	this->x = x;
+	this->y = y;
+	this->z = z;
+	this->index = index;
+}
 Point::Point(const Point& other)
 {
 	this->x = other.x;
 	this->y = other.y;
 	this->z = other.z;
+	this->index = other.index;
 }
 Point& Point::operator=(const Point& other)
 {
@@ -25,11 +34,12 @@ Point& Point::operator=(const Point& other)
 	this->x = other.x;
 	this->y = other.y;
 	this->z = other.z;
+	this->index = other.index;
 	return *this;
 }
 std::ostream& operator<<(std::ostream& os, const Point& p)
 {
-	std::cout << "X:" << p.x << " Y:" << p.y << " Z:" << p.z;
+	std::cout << "X:" << p.x << " Y:" << p.y << " Z:" << p.z << " index:" << p.index;
 	return os;
 }
 // implement getters
@@ -44,6 +54,10 @@ double Point::getY()
 double Point::getZ()
 {
 	return this->z;
+}
+int Point::getIndex()
+{
+	return this->index;
 }
 // implement setters
 Point& Point::setX(double x)
@@ -61,11 +75,17 @@ Point& Point::setZ(double z)
 	this->z = z;
 	return *this;
 }
-Point& Point::setPoint(double x, double y, double z)
+Point& Point::setIndex(int index)
+{
+	this->index = index;
+	return *this;
+}
+Point& Point::setPoint(double x, double y, double z, int index)
 {
 	this->x = x;
 	this->y = y;
 	this->z = z;
+	this->index = index;
 	return *this;
 }
 // implement distance function
