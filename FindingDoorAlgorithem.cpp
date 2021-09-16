@@ -1,67 +1,16 @@
-/**
-* This file is part of ORB-SLAM2.
-*
-* Copyright (C) 2014-2016 Raúl Mur-Artal <raulmur at unizar dot es> (University of Zaragoza)
-* For more information see <https://github.com/raulmur/ORB_SLAM2>
-*
-* ORB-SLAM2 is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* ORB-SLAM2 is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with ORB-SLAM2. If not, see <http://www.gnu.org/licenses/>.
-*/
+// FindingDoorAlgorithem.cpp : This file contains the 'main' function. Program execution begins and ends there.
+//
 
-
-#include<iostream>
-#include<algorithm>
-#include<fstream>
-#include<chrono>
-#include <unistd.h>
-#include<opencv2/core/core.hpp>
-#include <thread>
-#include<System.h>
-#include <Converter.h>
-#include "ctello.h"
-#include "opencv2/core.hpp"
-#include "opencv2/highgui.hpp"
-#include "opencv2/imgcodecs.hpp"
-#include "opencv2/imgproc.hpp"
-#include <point.h>
+#define _USE_MATH_DEFINES
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <string>
+#include "point.h"
+#include <algorithm>
 #include <math.h>
 
 using namespace std;
-using ctello::Tello;
-using cv::CAP_FFMPEG;
-using cv::imshow;
-using cv::line;
-using cv::Mat;
-using cv::Point2i;
-using cv::resize;
-using cv::Size;
-using cv::Vec3b;
-using cv::VideoCapture;
-using cv::waitKey;
-
-const char* const TELLO_STREAM_URL{"udp://0.0.0.0:11111"};
-volatile bool inThreadMove, inThreadFrame;
-bool video;
-Tello tello{};
-Mat im;
-bool localized = false;
-
-void LoadImages(const string &strFile, vector<string> &vstrImageFilenames,
-                vector<double> &vTimestamps);
-
-void saveMap(ORB_SLAM2::System& SLAM);
-
-// all of the algorithm functions
 vector<Point> parsePoints(string filePath); // gets the file path for the CSV file and returns a Vector of the Points of the room
 vector<Point> getMaxPoints(vector<Point>& points, Point targetP, int num); // gets a vector of points, a point to calculate distance to and a number of points to return and returns the X number of points that are furthest away for targetP
 Point findAvaregePoint(vector<Point>& points); // gets a vector of points and returns the avarege point
@@ -73,181 +22,11 @@ void sortOutOutliers(vector<Point>& points, int minNumberOfNeighbors, double nei
 void savePointToCsv(vector<Point>& points); // gets a vector of points and saves it to 2 different CSV files, 1 of the original vector and 1 of the vector without outliers
 Point getMaxPoint(vector<Point>& points, Point& targetP); // gets a vector and a target point and returns the point that is furthest away from the target point
 
-Point findingDoorPoint(); // returns the point of the door
-
-// a thread that controls the Drone movement
-void MoveDrone()
+int main()
 {
-	while(!video) // wait for the capture before you take off
-		sleep(0.01);
-	tello.SendCommand("takeoff");
-	while(!(tello.ReceiveResponse()));
-	sleep(0.1);
-	tello.SendCommand("down 15");
-	while(!(tello.ReceiveResponse()));
-	sleep(0.1);
-	sleep(5); // it takes a while before a picture is shown so wait 5 sec
-	while(!localized) // while we wait for the frames move up and down so the drone can get localized
-	{
-		tello.SendCommand("up 15");
-		while(!(tello.ReceiveResponse()));
-		sleep(0.1);
-		tello.SendCommand("down 15");
-		while(!(tello.ReceiveResponse()));
-		sleep(0.1);
-	}
-	for(int i = 0; i < 360; i = i + 24) // turn 360 degrees 24 degrees a time while moving up and down to help the drone capture frames
-	{
-		tello.SendCommand("cw 24");
-		while(!(tello.ReceiveResponse()));
-		sleep(0.1);
-		tello.SendCommand("up 30");
-		while(!(tello.ReceiveResponse()));
-		sleep(0.1);
-		tello.SendCommand("down 30");
-		while(!(tello.ReceiveResponse()));
-		sleep(0.3);
-	}
-	inThreadMove = false;
-}
-// a thread that get the frames from the drone
-void GetFrame()
-{
-	tello.SendCommand("streamon");
-	while (!(tello.ReceiveResponse()));
-	VideoCapture capture{TELLO_STREAM_URL, CAP_FFMPEG};
-	video = true;
-	// main loop, get the frames from capture and put it in our global matrics
-	while(inThreadMove)
-	{
-		capture >> im;
-		sleep(0.02);
-	}
-	inThreadFrame = false;
-	while(true) // continue to capture frames for getting out of the door algorithm
-	{
-		capture >> im;
-		sleep(0.02);
-	}
-}
-
-
-int main(int argc, char **argv)
-{
-  if(argc != 3)
-  {
-      cerr << endl << "Usage: ./mono_tum path_to_vocabulary path_to_settings path_to_sequence" << endl;
-      return 1;
-  }
-	if(!tello.Bind()) // check if tello is alive
-	{
-		return 0;
-	}
-	Point target, current;
-	double yaw, targetAngle, movingAngle;
-	Mat pose;
-	video = false;
-	inThreadFrame = true;
-	inThreadMove = true;
-	thread th1(GetFrame); // call thread GetFrame
-  // Create SLAM system. It initializes all system threads and gets ready to process frames.
-  ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);
-	thread th2(MoveDrone); // call thread MoveDrone
-	while(!video)
-	{
-		sleep(0.01); // we need to wait until the video is online before we try to display images
-	}
-	while(inThreadFrame)
-	{
-    if(!im.empty())
-    {
-      pose = SLAM.TrackMonocular(im,0.02); // if the image is not empty pass the images to SLAM
-      localized = !pose.empty();
-    }
-  }
-  cout << "ended getting frames" << endl;
-	saveMap(SLAM); // save the map
-	target = findingDoorPoint(); // call the finding door point algorithm
-  pose = SLAM.TrackMonocular(im,0.02); // get the current point from the MONOCULAR
-  Mat Rwc = pose.rowRange(0,3).colRange(0,3).t();
-  Mat twc = -Rwc*pose.rowRange(0,3).col(3); // get the current point matrics using the internet code
-  pose = pose.rowRange(0,3).colRange(0,3);
-  yaw = atan2(pose.at<float>(2,1),pose.at<float>(1,1)); // get the yaw using the internet code
-  current.setX(twc.at<float>(0));
-  current.setY(twc.at<float>(2));
-  current.setZ(twc.at<float>(1));
-  cout << "current point: " << endl << current << endl;
-  cout << "target point: " << endl << target << endl;
-  targetAngle = atan2(current.getX() - target.getX(), current.getZ() - target.getZ()); // calculate the angle using atan2, the door point and our current location
-  yaw = yaw * (180 / M_PI); // going from radians to degree
-  targetAngle = targetAngle * (180 / M_PI); // going from radians to degree
-  cout << "target angle is: " << targetAngle << endl;
-  cout << "yaw is: " << yaw << endl;
-  yaw += 90; // fixing the yaw to be from X axes
-  targetAngle += 180; // fixing target angle to be from 0 to 360 and not from -180 to 180
-  cout << "yaw after calc is: " << yaw << endl;
-  cout << "targetAngle after calc is: " << targetAngle << endl;
-  movingAngle = yaw - targetAngle; // calculate moving angle
-  cout << "moving angle is: " << movingAngle << endl;
-  tello.SendCommand("cw " + to_string(movingAngle)); // rotate the drone to face the door
-  while(!(tello.ReceiveResponse()));
-  sleep(1);
-	for(int i = 0; i < 10; i ++) // move forward
-	{
-    tello.SendCommand("forward 40");
-    while(!(tello.ReceiveResponse()));
-		sleep(0.1);
-	}
-	tello.SendCommand("land");
-	while(!(tello.ReceiveResponse()));
-	sleep(0.1);
-	cout << "landed" << endl;
-  SLAM.Shutdown();
-  return 0;
-}
-
-void LoadImages(const string &strFile, vector<string> &vstrImageFilenames, vector<double> &vTimestamps)
-{
-    ifstream f;
-    f.open(strFile.c_str());
-
-    // skip first three lines
-    string s0;
-    getline(f,s0);
-    getline(f,s0);
-    getline(f,s0);
-
-    while(!f.eof())
-    {
-        string s;
-        getline(f,s);
-        if(!s.empty())
-        {
-            stringstream ss;
-            ss << s;
-            double t;
-            string sRGB;
-            ss >> t;
-            vTimestamps.push_back(t);
-            ss >> sRGB;
-            vstrImageFilenames.push_back(sRGB);
-        }
-    }
-}
-
-void saveMap(ORB_SLAM2::System& SLAM){
-    std::vector<ORB_SLAM2::MapPoint*> mapPoints = SLAM.GetMap()->GetAllMapPoints();
-    std::ofstream pointData;
-    pointData.open("/tmp/pointData.csv");
-    for(auto p : mapPoints) {
-        if (p != NULL && !p->isBad())
-        {
-            auto point = p->GetWorldPos();
-            Eigen::Matrix<double, 3, 1> v = ORB_SLAM2::Converter::toVector3d(point);
-            pointData << v.x() << "," << v.y() << "," << v.z()<<  std::endl;
-        }
-    }
-    pointData.close();
+	Point p(0, 0, 0, 0);
+	vector<Point> points = parsePoints("data\\pointDataVered.csv");
+	savePointToCsv(points);
 }
 
 Point getMaxPoint(vector<Point>& points, Point& targetP)
@@ -465,14 +244,4 @@ bool sortFunctionDistance(Point p1, Point p2)
 bool sortFunctionIndex(Point p1, Point p2)
 {
 	return p1.getIndex() < p2.getIndex(); // return true if p2 index is bigger than p1
-}
-
-Point findingDoorPoint()
-{
-	Point p(0, 0, 0), a(0, 0 ,0);
-	vector<Point> points = parsePoints("/tmp/pointData.csv"); // create a vector of the map from the csv file we just saved
-	sortOutOutliers(points, 10, 0.1); // sort out the outliers
-	vector<Point> interval = getMaximumInterval(points, p, 10); // return the maximum interval
-	a = findAvaregePoint(interval); // get the avarege of the interval
-	return a;
 }

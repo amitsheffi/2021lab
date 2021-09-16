@@ -85,45 +85,8 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     mpKeyFrameDatabase = new KeyFrameDatabase(*mpVocabulary);
 
     //Create the Map
-    if (!bReuse)
-    {
         mpMap = new Map();
-    }
 
-	if (bReuse)
-	{
-		LoadMap("Slam_latest_Map.bin");
-        
-        //mpKeyFrameDatabase->set_vocab(mpVocabulary);
-       
-        vector<ORB_SLAM2::KeyFrame*> vpKFs = mpMap->GetAllKeyFrames();
-        for (vector<ORB_SLAM2::KeyFrame*>::iterator it = vpKFs.begin(); it != vpKFs.end(); ++it) {
-            (*it)->SetKeyFrameDatabase(mpKeyFrameDatabase);
-            (*it)->SetORBvocabulary(mpVocabulary);
-            (*it)->SetMap(mpMap);
-            (*it)->ComputeBoW();
-            mpKeyFrameDatabase->add(*it);
-            (*it)->SetMapPoints(mpMap->GetAllMapPoints());
-            (*it)->SetSpanningTree(vpKFs);
-            (*it)->SetGridParams(vpKFs);
-
-            // Reconstruct map points Observation
-
-        }
-
-        vector<ORB_SLAM2::MapPoint*> vpMPs = mpMap->GetAllMapPoints();
-        for (vector<ORB_SLAM2::MapPoint*>::iterator mit = vpMPs.begin(); mit != vpMPs.end(); ++mit) {
-            (*mit)->SetMap(mpMap);
-            (*mit)->SetObservations(vpKFs);
-
-        }
-
-        for (vector<ORB_SLAM2::KeyFrame*>::iterator it = vpKFs.begin(); it != vpKFs.end(); ++it) {
-            (*it)->UpdateConnections();
-        }
-       
-
-	}
 	cout << endl << mpMap <<" : is the created map address" << endl;
 
 
@@ -338,46 +301,6 @@ void System::Shutdown()
 
     pangolin::BindToContext("ORB-SLAM2: Map Viewer");
 }
-
-void System::LoadMap(const string &filename)
-{
-    {
-        std::ifstream is(filename);
-
-       
-        boost::archive::binary_iarchive ia(is, boost::archive::no_header);
-        //ia >> mpKeyFrameDatabase;
-        ia >> mpMap;
-       
-    }
-
-   // std::ifstream fin("Slam_latest_Map.bin", ios::binary);
-   // ostringstream ostrm;
-
-   // ostrm << fin.rdbuf();
-
-   // cout << ostrm << endl;
-   // cout << endl << filename <<" : Map Loaded!" << endl;
-
-    std::fstream file("Slam_latest_Map.bin", ios::binary);
-    auto my_str = string();
-    copy_n(std::istream_iterator<char>(file), 5, std::back_inserter(my_str));
-    cout << my_str << endl;
-
-}
-
-void System::SaveMap(const string &filename)
-{
-    std::ofstream os(filename);
-    {
-        ::boost::archive::binary_oarchive oa(os, ::boost::archive::no_header);
-        //oa << mpKeyFrameDatabase;
-        oa << mpMap;
-    }
-    cout << endl << "Map saved to " << filename << endl;
-
-}
-
 
 void System::SaveTrajectoryTUM(const string &filename)
 {
